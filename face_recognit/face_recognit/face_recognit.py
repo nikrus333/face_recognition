@@ -8,7 +8,7 @@ from backbones.init import get_model
 
 import rclpy
 from rclpy.node import Node
-#from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import qos_profile_sensor_data
 
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
@@ -25,10 +25,8 @@ class FaceRecognition(Node):
         self.strat = time.time()
         super().__init__('minimal_subscriber')
         self.test_pub = self.create_publisher(Face, "/face", 1) 
-        self.sub_image = self.create_subscription( Image,
-            '/video_frames',
-            self.listener_callback,
-            ) #qos_profile_sensor_data
+        self.sub_image = self.create_subscription( Image, '/video_frames', self.listener_callback, qos_profile_sensor_data) 
+        self.publisher_image = self.create_publisher(Image, '/face_frames', 10)
         timer_period = 0.01  # seconds
         self.timer = self.create_timer(timer_period, self.timer_callback) # video  
         self.start = time.time()
@@ -60,13 +58,16 @@ class FaceRecognition(Node):
     def detection_face(self, frame):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
-
+        self.face.face_detections = False
         for (x,y,w,h) in faces:
             #cv2.rectangle(cv_rgb,(x,y),(x+w,y+h),(255,0,0),2)
             #cv2.rectangle(cv_depth,(x,y),(x+w,y+h),(255,0,0),2)
             #cv2.rectangle(cv_rgb,(x+30,y+30),(x+w-30,y+h-30),(0,0,255),2)
-            frame = frame[y+50:y+h-50, x+50:x+w-50]
-        print(frame.shape)
+            frame = frame[y:y+h, x:x+w]
+            self.face.face_detections = True
+        #print(frame.shape)
+        self.face.process = 'scan'
+        self.publisher_image.publish(self.br.cv2_to_imgmsg(frame))
         return frame
 
     def recognition(self, data):
@@ -87,20 +88,24 @@ class FaceRecognition(Node):
             print('cos_close ' , cos_close)
             if end > 5:
                 if self.k < cos_close:
+                    self.face.face_recognition = True
                     print('I know him')
                 else:
+                    self.face.face_recognition = False
                     print('dangered stranger')
+        self.face.number_person = 1
     
     def listener_callback(self, data):
-        face = Face()
+        self.face = Face()
         current_frame = self.br.imgmsg_to_cv2(data)
         current_frame = self.detection_face(current_frame)
         self.recognition(current_frame)
+        self.test_pub.publish(self.face)
 
     
     def timer_callback(self):
         face = Face()
-        self.test_pub.publish(face)
+        
         #self.get_logger().info('Publishing: "%s"' % self.msg)
 
 def main(args=None):
