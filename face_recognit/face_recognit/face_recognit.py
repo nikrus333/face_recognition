@@ -17,7 +17,6 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from face_detect.msg import Face 
 
-
 class FaceRecognition(Node):
     def __init__(self):
         self.br = CvBridge()
@@ -26,14 +25,11 @@ class FaceRecognition(Node):
         super().__init__('minimal_subscriber')
         self.test_pub = self.create_publisher(Face, "/face", 1) 
         self.sub_image = self.create_subscription( Image, '/video_frames', self.listener_callback, qos_profile_sensor_data) 
-        self.publisher_image = self.create_publisher(Image, '/face_frames', 10)
-        timer_period = 0.01  # seconds
-        self.timer = self.create_timer(timer_period, self.timer_callback) # video  
+        self.publisher_image = self.create_publisher(Image, '/face_frames', 10)  
         self.start = time.time()
         self.base_frame = None
         self.k = 0.55
         self.face_cascade = cv2.CascadeClassifier('/root/ws/src/face_recognition/face_recognit/cfg/haar_cascade.xml')
-
 
     @torch.no_grad()
     def inference(self, weight, name = 'r50', img = None):
@@ -60,9 +56,6 @@ class FaceRecognition(Node):
         faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
         self.face.face_detections = False
         for (x,y,w,h) in faces:
-            #cv2.rectangle(cv_rgb,(x,y),(x+w,y+h),(255,0,0),2)
-            #cv2.rectangle(cv_depth,(x,y),(x+w,y+h),(255,0,0),2)
-            #cv2.rectangle(cv_rgb,(x+30,y+30),(x+w-30,y+h-30),(0,0,255),2)
             frame = frame[y:y+h, x:x+w]
             self.face.face_detections = True
         #print(frame.shape)
@@ -71,8 +64,7 @@ class FaceRecognition(Node):
         return frame
 
     def recognition(self, data):
-        frame = data
-        frame = cv2.resize(frame, (112, 112))
+        frame = cv2.resize(data, (112, 112))
         end = time.time() - self.start
         if end <= 3:
             feat1 = self.inference('/root/work/insightface/recognition/arcface_torch/ms1mv3_arcface_r50/backbone.pth', 'r50', frame)   
@@ -101,11 +93,6 @@ class FaceRecognition(Node):
         current_frame = self.detection_face(current_frame)
         self.recognition(current_frame)
         self.test_pub.publish(self.face)
-
-    
-    def timer_callback(self):
-        face = Face()
-        
         #self.get_logger().info('Publishing: "%s"' % self.msg)
 
 def main(args=None):
